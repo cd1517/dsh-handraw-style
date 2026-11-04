@@ -13,7 +13,7 @@ dsh-handraw-style/   （仓库根目录）
   cordis.patch.yml   把插件插进 profile 的 patch
   assets/            styles.json / colors.json / layouts.json（画风、配色、版式库，含缩略图）
   gallery/LICENSE    图库上游许可证（本仓库不含 data/ thumbs/ img/）
-  docs/preview.png   README 里的界面截图
+  docs/preview.webp   README 里的界面截图
   README.md          用户说明（安装、升级、接口设置）
   NOTICE.md          素材来源与许可证
 ```

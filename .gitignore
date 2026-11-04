@@ -3,6 +3,8 @@ node_modules/
 .tmp*/
 .diag/
 .verify/
+.stage-zip/
+.tmp-compress/
 *.log
 
 # 图库：约 1.1 GB、1.1 万个文件，不随源码仓库分发。
