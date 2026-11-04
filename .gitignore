@@ -4,6 +4,7 @@ node_modules/
 .diag/
 .verify/
 .stage-zip/
+.release/
 .tmp-compress/
 *.log
 
