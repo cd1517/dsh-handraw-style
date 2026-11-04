@@ -4,7 +4,9 @@ window.__ModuleLoader__.load({
     const { createElement: h, useState, useEffect, useLayoutEffect, useRef } = require('react');
     const panel = 'pose-studio';
     const categories = { pose: '姿势', clothes: '服装', face: '人像', style: '画风' };
-    const groups = { FA:'社论幽默', FB:'经典绘本', FC:'平面艺术', FD:'当代插画', FE:'国风工艺', FF:'黏土纸雕', FG:'动漫赛璐璐', FH:'实验媒介', FI:'写实摄影' };
+    // 画风按 FA–FI 分组、版式按 SC/IG/SB/IP/EC 分组；素材分类的二级导航直接用中文名，不露出编号。
+    const groups = { FA:'社论幽默', FB:'经典绘本', FC:'平面艺术', FD:'当代插画', FE:'国风工艺', FF:'黏土纸雕', FG:'动漫赛璐璐', FH:'实验媒介', FI:'写实摄影',
+      SC:'社媒卡', IG:'信息图', SB:'漫画分镜', IP:'IP 设计', EC:'电商图' };
     const api = '/api/pose-studio.';
     const thumb = (kind, item, depth, full) => api + 'thumb?' + new URLSearchParams({ kind, id: item.id, depth: depth ? '1' : '0', full: full ? '1' : '0' });
     async function request(path, body, signal) {
