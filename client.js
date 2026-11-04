@@ -43,6 +43,19 @@ window.__ModuleLoader__.load({
     .ps .error{color:#962c24}.ps footer{padding:8px 24px 22px}.ps .settings{margin:16px 24px 0}.ps .settings input{max-width:100%}
     @media(max-width:740px){.ps .grid{grid-template-columns:1fr;padding:12px}.ps header,.ps footer{padding:12px}.ps .settings{margin:12px}}
     `;
+    // 生成图的大图查看层：点图片放大，可继续放大/缩小/适应，Esc 或点背景关闭。
+    // 选择器统一带 .ps 前缀，确保压过主题里后出现的 .ps button / .ps img 规则。
+    const viewerCss = `
+    .ps .preview{cursor:zoom-in}
+    .ps .ps-viewer{position:fixed;inset:0;z-index:30;background:#0b0d12e8;display:flex;flex-direction:column;gap:10px;padding:14px;overflow:auto}
+    .ps .ps-viewer-bar{display:flex;gap:8px;align-items:center;justify-content:center;flex-wrap:wrap;flex:none}
+    .ps .ps-viewer-bar button{background:#ffffff1a;border:1px solid #ffffff3d;color:#fff;border-radius:8px;padding:6px 12px}
+    .ps .ps-viewer-bar button:hover:not(:disabled){background:#ffffff30;border-color:#ffffff66}
+    .ps .ps-viewer-bar .scale{color:#d9dce8;font-size:12px;min-width:46px;text-align:center}
+    .ps .ps-viewer-stage{flex:1;display:grid;place-items:center;min-height:0}
+    .ps .ps-viewer-stage img{max-width:100%;max-height:calc(100vh - 120px);object-fit:contain;border-radius:6px;box-shadow:0 18px 60px #000c;transform-origin:center center;transition:transform .12s ease;cursor:zoom-in}
+    .ps .ps-viewer-stage img.zoomed{cursor:zoom-out}
+    `;
     const platforms = {
       article:['文章插图 · 4:3',1200,900],
       xhs:['小红书竖版',1080,1440], dy:['抖音竖版',1080,1920], wx:['公众号宽封面',1200,510],
@@ -389,6 +402,13 @@ window.__ModuleLoader__.load({
       const [error,setError]=useState('');
       const [busy,setBusy]=useState(()=>job.controller?job.label:'');
       const [preview,setPreview]=useState('');
+      const [viewer,setViewer]=useState(null);
+      useEffect(()=>{
+        if(!viewer)return;
+        const onKey=event=>{if(event.key==='Escape')setViewer(null);};
+        window.addEventListener('keydown',onKey);
+        return()=>window.removeEventListener('keydown',onKey);
+      },[viewer]);
       latestProject=project;
       const [hydrated,setHydrated]=useState(Boolean(workspaceSnapshot));
       const surface=useRef(null);
@@ -945,7 +965,9 @@ window.__ModuleLoader__.load({
               Button('删除这张',()=>{update({pages:project.pages.filter(x=>x.id!==page.id)});setActive(Math.max(0,active-1));},{disabled:project.pages.length===1||page.locked})))),
           h('section',{className:'box stack result-panel'},
             h('small',null,'第 '+(active+1)+' 张'+(page.placement?' · '+page.placement:'')),
-            (preview||page.image)?h('img',{className:'preview',src:preview||page.image,alt:'当前页成图'}):
+            (preview||page.image)?h('img',{className:'preview',src:preview||page.image,alt:'当前页成图',title:'点击放大查看',tabIndex:0,role:'button','aria-label':'放大查看当前页成图',
+              onClick:()=>setViewer({src:preview||page.image,scale:1}),
+              onKeyDown:e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();setViewer({src:preview||page.image,scale:1});}}}):
               h('div',{className:'empty-preview'},h('h2',null,page.title||'当前画面'),h('p',null,page.brief||'生成后在这里查看图片。'),page.body&&h('p',{className:'muted'},page.body)),
             h('div',{className:'line'},Button(page.image?'重做本页':'生成本页',generateOne,{className:'primary',disabled:!canGenerate}),
               project.pages.length>1&&Button('生成剩余 '+remaining.length+' 页',()=>settings?.configured?action('正在生成批量任务',signal=>batch(remaining,signal)):setOpenSettings(true),{disabled:!!busy||!remaining.length}),
@@ -975,7 +997,7 @@ h('p',{className:'muted'},'点图片即可在独立画廊更换。'),
             Button('保存项目',()=>action('保存项目',async()=>{await projectStore('put',project);await refreshProjects();}))))),
         h('footer',{className:'muted'},'素材来源 ',h('a',{href:'https://github.com/anhao/ai-pose-gallery-zh'},'Anhao / ギア'),' · ',h('a',{href:'https://github.com/yang0/handraw-style'},'yang0 / handraw-style')));
       const hasPlan=Boolean(project.concept||page.brief||page.image);
-      return h('main',{className:'ps',ref:surface,onScroll:e=>{if(!needsScroll.current)scroll.current=e.currentTarget.scrollTop;}},h('style',null,css+`
+      return h('main',{className:'ps',ref:surface,onScroll:e=>{if(!needsScroll.current)scroll.current=e.currentTarget.scrollTop;}},h('style',null,css+viewerCss+`
         .ps{background:#f4f1e9}.ps header{position:sticky;top:0;z-index:2;background:#f4f1e9;flex-wrap:wrap}.ps header h1{font-size:19px}.ps .shell{max-width:1200px;margin:0 auto;padding:24px}.ps .intro{padding:24px 0 12px}.ps .intro h2{font-size:clamp(28px,5vw,48px);letter-spacing:-.04em;line-height:1.2;margin:5px 0 10px}.ps .intro small{color:#42614f}.ps .intro p{color:#625d51}.ps button:focus-visible,.ps input:focus-visible,.ps textarea:focus-visible{outline:2px solid #27634e;outline-offset:2px}.ps .tag{background:#e8e3d6;border-radius:20px;padding:5px 12px}.ps .plan-cards,.ps .reference-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(108px,1fr));gap:9px}.ps .plan-cards button,.ps .asset-card{min-width:0;text-align:left;overflow-wrap:anywhere}.ps .plan-cards button img,.ps .asset-card img,.ps .asset-empty{width:100%;height:82px;object-fit:contain;background:#f1ede4;border-radius:5px;display:block;margin-bottom:5px}.ps .asset-empty{display:grid;place-items:center;font-size:25px;color:#586655}.ps .asset-card strong,.ps .asset-card small,.ps .plan-cards small,.ps .plan-cards strong{display:block}.ps .upload-card{border:1px solid #d9d3c7;padding:8px;border-radius:8px}.ps .upload-card input{font-size:10px;width:100%}.ps .anchor-thumb{width:56px;height:56px;object-fit:contain}.ps .work-columns{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(0,1fr);gap:14px;align-items:start}.ps .empty-preview{display:grid;align-content:center;gap:12px;background:#eee9dd;padding:20px;min-height:230px;border-radius:8px}.ps .preview{width:100%;max-height:630px;object-fit:contain;background:#f2ede1}.ps .gallery-grid{grid-template-columns:repeat(auto-fill,minmax(132px,1fr));gap:11px}.ps .gallery-grid strong{display:block;font-size:13px}.ps .detail{position:fixed;inset:12% max(5%,calc((100vw - 720px)/2));z-index:3;box-shadow:0 0 0 100vmax #2228;overflow:auto}.ps .detail img{max-width:100%;max-height:47vh;object-fit:contain;justify-self:center}.ps .extras{padding-top:12px}.ps fieldset{min-width:0;border:0;margin:0}.ps .box{border:1px solid #ded8cd}.ps .settings-panel{max-width:760px}.ps summary{cursor:pointer}.ps .field{display:grid;gap:5px}@media(max-width:750px){.ps .work-columns{grid-template-columns:1fr}.ps .shell{padding:14px}}
         .ps{background:#f5f6fa;color:#1d2433}.ps header{background:#fcfcff;border-color:#e1e4ee}.ps .box{background:#fff;border-color:#e1e4ee;border-radius:14px}.ps button,.ps input:not([type=checkbox]),.ps textarea{background:#fff;border-color:#dce0ed}.ps button:hover:not(:disabled){border-color:#6653c4}.ps button[aria-pressed=true]{background:#eeebff;color:#35227d;border-color:#b8a8ff}.ps .primary{background:#5440bd;color:#fff;border-color:#5440bd}.ps .studio-start{max-width:840px;padding-top:44px}.ps .scenario-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(112px,1fr));gap:7px}.ps .scenario-grid button{text-align:left}.ps .studio-start textarea{min-height:150px}.ps .composer{position:relative;border:1px solid #dce0ed;border-radius:24px;background:#fff;padding:12px 14px 9px;box-shadow:0 3px 12px #202a4210}.ps .composer:focus-within{border-color:#a699e4}.ps .composer textarea{border:0;outline:0;box-shadow:none;min-height:76px;resize:vertical;padding:8px 2px}.ps .composer textarea:focus-visible{outline:0}.ps .composer-toolbar{display:flex;justify-content:space-between;align-items:center}.ps .attachment-trigger{position:relative}.ps .composer-plus{display:grid;place-items:center;width:34px;height:34px;padding:0;border-radius:50%;font-size:22px;line-height:1}.ps .attachment-popover{position:absolute;z-index:4;top:calc(100% + 6px);left:0;padding:5px;border:1px solid #e1e4ee;border-radius:12px;background:#fff;box-shadow:0 8px 24px #202a4220;white-space:nowrap}.ps .attachment-popover button{border:0}.ps .composer-files{display:flex;flex-wrap:wrap;gap:8px}.ps .composer-file{display:flex;align-items:center;gap:7px;max-width:min(100%,220px);padding:5px;border:1px solid #e1e4ee;border-radius:11px;background:#f8f8fc}.ps .composer-file img,.ps .file-glyph{width:36px;height:36px;flex:none;border-radius:6px;object-fit:cover}.ps .file-glyph{display:grid;place-items:center;background:#eeebff;color:#5440bd;font-size:20px}.ps .composer-file-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px}.ps .composer-file button{width:24px;height:24px;flex:none;padding:0;border:0;border-radius:50%;background:#eeeef5}.ps .studio-start fieldset{padding:22px}.ps .studio-start .intro small{color:#5440bd}.ps .studio-workspace{max-width:1520px}.ps .studio-heading h2{font-size:clamp(22px,3vw,33px)}.ps .studio-heading .stack{gap:2px}.ps .concept{color:#575e72;max-width:80ch}.ps .studio-grid{display:grid;grid-template-columns:minmax(155px,.68fr) minmax(280px,1.55fr) minmax(255px,1fr);gap:14px;align-items:start}.ps .page-rail,.ps .result-panel,.ps .inspector{min-width:0}.ps .rail-items{display:grid;gap:6px}.ps .rail-items button{display:grid;grid-template-columns:38px minmax(0,1fr);gap:8px;text-align:left;align-items:center}.ps .rail-items button img,.ps .page-number{width:38px;height:38px;border-radius:6px;object-fit:cover}.ps .page-number{display:grid;place-items:center;background:#e9e5fa;color:#4d39a3}.ps .rail-items small,.ps .rail-items strong{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.ps .inspector-tabs{gap:4px;border-bottom:1px solid #e1e4ee;padding-bottom:8px}.ps .inspector-tabs button{padding:5px 7px}.ps .empty-preview{background:#f0eff8;min-height:290px}.ps .result-panel .preview{background:#f0eff8}.ps .gallery-item{position:relative;min-width:0}.ps .pose-gallery{grid-template-columns:repeat(auto-fill,minmax(min(100%,235px),1fr));gap:16px}.ps .pose-gallery .pose-main{padding:7px}.ps .pose-gallery .pose-main img{aspect-ratio:1;object-fit:contain;margin-bottom:6px}.ps .pose-angles{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:4px;margin-top:5px}.ps .pose-angles button{min-width:0;padding:2px}.ps .pose-angles img{width:100%;aspect-ratio:1;object-fit:contain}.ps .pose-angles button[aria-pressed=true]{outline:2px solid #6653c4;outline-offset:-2px}.ps .gallery-item>button:first-child{width:100%}.ps .gallery-item .zoom-asset{position:absolute;top:8px;right:8px;padding:4px 8px;font-size:16px}.ps .gallery-grid button{background:#fff}.ps .gallery-grid img{border-radius:5px}.ps textarea.scene-description{width:100%;min-height:220px;max-height:70vh;field-sizing:content;resize:vertical;overflow:auto;line-height:1.65}.ps .prompt-reading{border:1px solid #e1e4ee;border-radius:10px;padding:12px;background:#fafaff}.ps .prompt-reading button{display:inline-flex;align-items:center;justify-content:center}.ps .prompt-prose{white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.75;margin-top:10px;user-select:text}.ps .studio-grid fieldset{padding:0}.ps .tag,.ps .asset-empty{background:#efedf8}.ps footer{padding-left:0}@media(max-width:1050px){.ps .studio-grid{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}.ps .page-rail{grid-column:1/-1}.ps .rail-items{grid-template-columns:repeat(auto-fit,minmax(125px,1fr))}}@media(max-width:680px){.ps .studio-grid{grid-template-columns:1fr}.ps .studio-start{padding-top:16px}}
       `),
@@ -988,7 +1010,18 @@ h('p',{className:'muted'},'点图片即可在独立画廊更换。'),
         openSettings&&renderSettings(),
         error&&h('p',{className:'shell error',role:'alert'},error),
         busy&&h('div',{className:'shell line',role:'status'},busy,Button('停止',()=>job.controller?.abort(),{disabled:!busy.startsWith('正在生成')})),
-        !hydrated&&!seed?h('p',{className:'shell',role:'status'},'正在恢复工作台…'):view==='gallery'?galleryView:view==='projects'?projectView:view==='start'||!hasPlan?startView:workspace);
+        !hydrated&&!seed?h('p',{className:'shell',role:'status'},'正在恢复工作台…'):view==='gallery'?galleryView:view==='projects'?projectView:view==='start'||!hasPlan?startView:workspace,
+        viewer&&h('div',{className:'ps-viewer',role:'dialog','aria-modal':'true','aria-label':'查看大图',onClick:()=>setViewer(null)},
+          h('div',{className:'ps-viewer-bar',onClick:e=>e.stopPropagation()},
+            Button('缩小',()=>setViewer(v=>({...v,scale:Math.max(1,v.scale/1.25)})),{disabled:viewer.scale<=1,'aria-label':'缩小'}),
+            h('span',{className:'scale','aria-live':'polite'},Math.round(viewer.scale*100)+'%'),
+            Button('放大',()=>setViewer(v=>({...v,scale:Math.min(4,v.scale*1.25)})),{disabled:viewer.scale>=4,'aria-label':'放大'}),
+            Button('适应屏幕',()=>setViewer(v=>({...v,scale:1})),{disabled:viewer.scale===1}),
+            Button('关闭',()=>setViewer(null),{className:'primary'})),
+          h('div',{className:'ps-viewer-stage'},
+            h('img',{src:viewer.src,alt:'查看大图',className:viewer.scale>1?'zoomed':'',style:{transform:'scale('+viewer.scale+')'},
+              onClick:e=>{e.stopPropagation();setViewer(v=>({...v,scale:v.scale>1?1:2}));},
+              title:viewer.scale>1?'点击还原':'点击放大到 200%'}))));
     }
 
     function apply(ctx) {
