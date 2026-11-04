@@ -13,10 +13,18 @@ const roles = { face: '只参考人物外观与发型', clothes: '只参考服�
 const types = { png: 'image/png', webp: 'image/webp', jpg: 'image/jpeg', jpeg: 'image/jpeg' };
 const maxImage = 8 * 1024 * 1024;
 
-/** 用户上传的照片是主体依据，拼在提示词末尾做硬性约束，避免被风格/版式冲淡。 */
-function identityGuard(indices) {
+/**
+ * 用户上传图必须作为主体真实参与生成。上传图可能是人物，也可能是宠物、商品、场景，
+ * 所以约束按“先判断对象类型，再保留该类最可识别的特征”来写，不假设一定是人像。
+ */
+function identityGuard(indices, refs) {
   if (!indices.length) return '';
-  return `【主体一致性硬性要求】参考图 ${indices.join('、')} 是用户上传的照片，主体以此为准。生成时必须保留其脸型、五官比例、发型、肤色、体型、年龄感与穿着；结果要一眼认出是同一个主体，不要换脸、不要把五官改成通用脸，也不要把上传图只当成风格或构图参考。若上传的是物体或场景，保留形状、比例、材质、颜色与关键细节。当风格、版式、姿势与主体相似度冲突时，以保留主体特征为优先。`;
+  const outfit = refs.clothes
+    ? '服装与配饰以所选「服装」参考图为准，不要照搬上传图里的衣服；'
+    : '服装、配饰与随身物品沿用上传图；';
+  const pose = refs.pose ? '姿势与视角以「姿势」参考图为准；' : '';
+  const face = refs.face ? '同时选了「人像」参考图时，它只提供光影、质感与镜头感，不替换上传图里的主体外观；' : '';
+  return `【上传图一致性硬性要求】参考图 ${indices.join('、')} 是用户上传的图，必须真实作为主体依据，不能只当风格、构图或配色参考。先判断图中是什么，再保留它最可识别的特征：人物保留脸型、五官比例、发型、肤色、体型与年龄感；动物保留毛色、花纹、体型与脸型；商品保留形状、比例、材质、颜色、商标与文字；场景保留结构、布局、光线与关键物件。${outfit}${pose}${face}画风、配色、版式只决定画法与气质，不得替换主体本身。冲突时以用户上传图的特征为优先。`;
 }
 const defaults = { model: 'gpt-image-2', size: '1024x1536', quality: 'medium' };
 const dataDir = join(process.env.DSH_HOME || join(homedir(), '.dsh'), 'pose-studio');
@@ -145,6 +153,7 @@ export async function generate(body, settings, list, signal) {
   };
   const compiled = body.design ? await compilePrompt({design:body.design,refs:inputRefs,model:settings.model,list,size:options.size}) : null;
   const refs = compiled?.refs ?? inputRefs;
+  const hasUpload = Boolean(refs.upload);
   const files = [], instructions = [], identityRefs = [];
   for (const [kind, role] of Object.entries(roles)) {
     if (!refs[kind]) continue;
@@ -159,7 +168,12 @@ export async function generate(body, settings, list, signal) {
     }
     files.push(blob);
     if (kind === 'upload') identityRefs.push(files.length);
-    instructions.push(`参考图 ${files.length}：${role}${detail ? '。' + detail : ''}`);
+    const label = kind === 'upload'
+      ? '用户上传的参考图，主体以此为准：按图中对象保留可识别特征（人物的脸型、五官与发型；动物的毛色与花纹；商品的形状、材质与商标；场景的结构与关键物件），不要换成别的对象'
+      : kind === 'face' && hasUpload
+        ? '只参考人像素材的光影、质感与镜头感；若上传图是人物，人物外观以上传图为准'
+        : role;
+    instructions.push(`参考图 ${files.length}：${label}${detail ? '。' + detail : ''}`);
   }
   if(inputRefs.attachments!==undefined){
     if(!Array.isArray(inputRefs.attachments)||inputRefs.attachments.length>8)throw fail(400,'附件图片格式或数量无效。');
@@ -168,10 +182,10 @@ export async function generate(body, settings, list, signal) {
     for(const blob of images){
       files.push(blob);
       identityRefs.push(files.length);
-      instructions.push(`参考图 ${files.length}：用户随主题上传的实拍图，作为主体与画面依据。若为人物，保留五官、脸型、发型、肤色、体型与穿着；若为物体或场景，保留形状、比例、材质、颜色与关键细节。不要只当作风格或构图参考。`);
+      instructions.push(`参考图 ${files.length}：用户随主题上传的实拍图，作为主体与画面依据：保留图中对象最可识别的特征（人物的五官与体型、动物的外观、商品的形状材质与文字、场景的结构与关键物件）；${refs.clothes ? '人物服装以「服装」参考图为准' : '人物服装与配饰沿用上传图'}。不要只当作风格或构图参考。`);
     }
   }
-  const guard = identityGuard(identityRefs);
+  const guard = identityGuard(identityRefs, refs);
   const base = compiled ? compiled.withReferences(instructions) : [body.prompt.trim(), ...instructions].join('\n');
   const prompt = guard ? base + '\n' + guard : base;
   let payload;

@@ -27,7 +27,7 @@ dsh-handraw-style/   （仓库根目录）
 
 - **面板注册**：`main` 是 keyed 槽，切走会卸载组件；`sidebar.panellist` 提供左栏入口。异步任务（出图/规划）放在模块作用域 `job`，不要依赖组件卸载时的清理。
 - **规划**：`hostPlanner(ctx)` 读宿主 `llm` 服务与 `agentDefaultModel.currentSelection()`，`prepareCall()` 后流式收集 `text-delta`；失败码经 `plannerFailure()` 翻译。宿主不可用时 `gatewayPlan()` 回退到插件自己的 `chat/completions`；`POSE_STUDIO_PLANNER=gateway` 可强制回退。
-- **出图**：`generate()` 按 `roles` 组装参考图（pose/face/clothes/style/style2/upload/anchor），有参考图走 multipart `images/edits`，否则 `images/generations`，要求返回 `b64_json`。用户上传图（`refs.upload` 与 `refs.attachments`）的序号收进 `identityRefs`，提示词末尾补一条 `identityGuard()` 硬约束：保留主体脸型、五官、发型、肤色、体型与穿着，风格冲突时以主体相似度优先。
+- **出图**：`generate()` 按 `roles` 组装参考图（pose/face/clothes/style/style2/upload/anchor），有参考图走 multipart `images/edits`，否则 `images/generations`，要求返回 `b64_json`。用户上传图（`refs.upload` 与 `refs.attachments`）的序号收进 `identityRefs`，提示词末尾补 `identityGuard(indices, refs)`：先判断图中对象类型再保留该类特征（人物五官发型、动物毛色花纹、商品形状材质、场景结构），服装有素材时以素材为准、姿势有素材时以素材为准、有上传图时人像素材只提供光影质感；冲突以上传图优先。
 - **配置**：`$DSH_HOME/pose-studio/openai.json`（0600）。`gateway()` 校验 Base URL（本机可 HTTP，其他必须 HTTPS），`saveConfig()` 换域名时要求同时填 Key。
 - **素材目录**：`assets()` 缓存 `assets/*.json` 与 `gallery/data/*-zh.json`；缺文件时对应 `catalog` 返回 404 并提示导入，画风/配色/版式不受影响。
 
