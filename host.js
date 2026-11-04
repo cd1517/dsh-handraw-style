@@ -9,9 +9,15 @@ const root = new URL('./assets/', import.meta.url);
 const gallery = new URL('./gallery/', import.meta.url);
 const catalogFiles = { pose: 'pose', clothes: 'costume', face: 'portrait' };
 const bundled = { style: 'styles', color: 'colors', layout: 'layouts' };
-const roles = { face: '只参考人物外观与发型', clothes: '只参考服装款式和配色', pose: '只参考肢体姿态、视角及构图', style: '只参考主体的线条、笔触、媒介、材质和造型语言，勿沿用图中的主体、服装、姿势、构图或文字', style2: '只参考背景的笔触、材质与视觉语言，勿照搬示例场景、构图和文字', anchor: '保持同一项目的视觉语言及主体身份，遵循本页新的构图', upload: '参考用户提供的主体或画面细节' };
+const roles = { face: '只参考人物外观与发型', clothes: '只参考服装款式和配色', pose: '只参考肢体姿态、视角及构图', style: '只参考主体的线条、笔触、媒介、材质和造型语言，勿沿用图中的主体、服装、姿势、构图或文字', style2: '只参考背景的笔触、材质与视觉语言，勿照搬示例场景、构图和文字', anchor: '保持同一项目的视觉语言及主体身份，遵循本页新的构图', upload: '用户上传的主体照片，是本张的主体依据：保留其中人物的脸型、五官比例、发型、肤色、体型与年龄感，以及服装、配饰、随身物品的特征，生成结果要能一眼认出是同一个主体' };
 const types = { png: 'image/png', webp: 'image/webp', jpg: 'image/jpeg', jpeg: 'image/jpeg' };
 const maxImage = 8 * 1024 * 1024;
+
+/** 用户上传的照片是主体依据，拼在提示词末尾做硬性约束，避免被风格/版式冲淡。 */
+function identityGuard(indices) {
+  if (!indices.length) return '';
+  return `【主体一致性硬性要求】参考图 ${indices.join('、')} 是用户上传的照片，主体以此为准。生成时必须保留其脸型、五官比例、发型、肤色、体型、年龄感与穿着；结果要一眼认出是同一个主体，不要换脸、不要把五官改成通用脸，也不要把上传图只当成风格或构图参考。若上传的是物体或场景，保留形状、比例、材质、颜色与关键细节。当风格、版式、姿势与主体相似度冲突时，以保留主体特征为优先。`;
+}
 const defaults = { model: 'gpt-image-2', size: '1024x1536', quality: 'medium' };
 const dataDir = join(process.env.DSH_HOME || join(homedir(), '.dsh'), 'pose-studio');
 const configFile = join(dataDir, 'openai.json');
@@ -139,7 +145,7 @@ export async function generate(body, settings, list, signal) {
   };
   const compiled = body.design ? await compilePrompt({design:body.design,refs:inputRefs,model:settings.model,list,size:options.size}) : null;
   const refs = compiled?.refs ?? inputRefs;
-  const files = [], instructions = [];
+  const files = [], instructions = [], identityRefs = [];
   for (const [kind, role] of Object.entries(roles)) {
     if (!refs[kind]) continue;
     let blob, detail = '';
@@ -152,6 +158,7 @@ export async function generate(body, settings, list, signal) {
       detail = [asset.name, asset.prompt].filter(Boolean).join('。');
     }
     files.push(blob);
+    if (kind === 'upload') identityRefs.push(files.length);
     instructions.push(`参考图 ${files.length}：${role}${detail ? '。' + detail : ''}`);
   }
   if(inputRefs.attachments!==undefined){
@@ -160,10 +167,13 @@ export async function generate(body, settings, list, signal) {
     if(images.reduce((n,x)=>n+x.size,0)>12*1024*1024)throw fail(413,'附件图片合计最多 12 MB。');
     for(const blob of images){
       files.push(blob);
-      instructions.push(`参考图 ${files.length}：用户随创作主题上传的参考图，按主题理解其用途。`);
+      identityRefs.push(files.length);
+      instructions.push(`参考图 ${files.length}：用户随主题上传的实拍图，作为主体与画面依据。若为人物，保留五官、脸型、发型、肤色、体型与穿着；若为物体或场景，保留形状、比例、材质、颜色与关键细节。不要只当作风格或构图参考。`);
     }
   }
-  const prompt = compiled ? compiled.withReferences(instructions) : [body.prompt.trim(), ...instructions].join('\n');
+  const guard = identityGuard(identityRefs);
+  const base = compiled ? compiled.withReferences(instructions) : [body.prompt.trim(), ...instructions].join('\n');
+  const prompt = guard ? base + '\n' + guard : base;
   let payload;
   const headers = { Authorization: 'Bearer ' + key };
   if (files.length) {
