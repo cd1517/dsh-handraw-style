@@ -18,13 +18,13 @@
 
 1. 打开 DSH，左栏点 **插件**
 2. 点 **添加插件** → **安装第三方插件**
-3. 把仓库地址粘进去：`https://github.com/yang0/dsh-pose-studio`
+3. 把仓库地址粘进去：`https://github.com/yang0/dsh-handraw-style`
 4. 装好后，左栏点 **AI 写真工作台**
 
 命令行也行：
 
 ```bash
-dsh plugin --profile web add "github:yang0/dsh-pose-studio"
+dsh plugin --profile web add "github:yang0/dsh-handraw-style"
 ```
 
 ## 开始出图
