@@ -5,14 +5,15 @@
 ## 目录
 
 ```
-dsh-pose-studio/
+dsh-handraw-style/   （仓库根目录）
   host.js            DSH Host 端 cordis 插件：注册 /api/pose-studio.* 路由
   client.js          浏览器端插件：单文件、手写 h()、无构建步骤
   import-gallery.js  把上游素材整理成 gallery/ 目录
-  package.json       dsh.client.inject / dsh.bundle.patch / files 清单
+  package.json       dsh.client.inject / dsh.bundle.patch / files 清单（包名 dsh-plugin-pose-studio）
   cordis.patch.yml   把插件插进 profile 的 patch
-  assets/            styles.json / colors.json / layouts.json（画风、配色、版式库）
-  gallery/LICENSE    图库上游许可证（本包不含 data/ thumbs/ img/）
+  assets/            styles.json / colors.json / layouts.json（画风、配色、版式库，含缩略图）
+  gallery/LICENSE    图库上游许可证（本仓库不含 data/ thumbs/ img/）
+  docs/preview.png   README 里的界面截图
   README.md          用户说明（安装、升级、接口设置）
   NOTICE.md          素材来源与许可证
 ```
@@ -33,7 +34,7 @@ dsh-pose-studio/
 ## 本地开发
 
 ```cmd
-dsh plugin --profile web add "link:C:\绝对路径\dsh-pose-studio"
+dsh plugin --profile web add "link:C:\绝对路径\dsh-handraw-style"
 dsh web
 ```
 
