@@ -1,0 +1,30 @@
+# 依赖与临时产物
+node_modules/
+.tmp*/
+.diag/
+.verify/
+*.log
+
+# 图库：约 1.1 GB、1.1 万个文件，不随源码仓库分发。
+# 需要时按 README 的说明另行导入，或改用 Git LFS。
+gallery/img/
+gallery/thumbs/
+gallery/data/
+
+# 打包产物
+*.zip
+*.tar
+*.part01
+*.part02
+*.part03
+
+# 本地配置与密钥（插件密钥实际存放在 ~/.dsh/pose-studio/openai.json）
+.env
+.env.*
+*.local
+*.key
+
+# 系统文件
+Thumbs.db
+.DS_Store
+desktop.ini

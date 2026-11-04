@@ -1,0 +1,34 @@
+{
+  "name": "dsh-plugin-pose-studio",
+  "version": "0.7.3",
+  "type": "module",
+  "main": "./host.js",
+  "exports": {
+    ".": "./host.js",
+    "./client": "./client.js",
+    "./package.json": "./package.json"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "inject": [
+        "@deepseek-ai/dsh-client-ui-sidebar",
+        "@deepseek-ai/dsh-client-ui-layout"
+      ]
+    }
+  },
+  "files": [
+    "host.js",
+    "client.js",
+    "cordis.patch.yml",
+    "assets",
+    "NOTICE.md",
+    "README.md",
+    "gallery",
+    "import-gallery.js",
+    "prompt.js"
+  ]
+}
