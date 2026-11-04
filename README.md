@@ -16,16 +16,13 @@
 
 ## 安装
 
-1. 打开 DSH，左栏点 **插件**
-2. 点 **添加插件** → **安装第三方插件**
-3. 把仓库地址粘进去：`https://github.com/yang0/dsh-handraw-style`
-4. 装好后，左栏点 **AI 写真工作台**
+把这句话直接丢给 DeepSeek：
 
-命令行也行：
+> 安装插件 https://github.com/yang0/dsh-handraw-style ，装好后启用
 
-```bash
-dsh plugin --profile web add "github:yang0/dsh-handraw-style"
-```
+它会把插件装好并告诉你要不要重启。重启后左栏点 **AI 写真工作台** 就能用。
+
+想自己点也行：DSH 左栏 **插件** → **添加插件** → **安装第三方插件**，粘上面的仓库地址；或者命令行 `dsh plugin --profile web add "github:yang0/dsh-handraw-style"`。
 
 ## 开始出图
 
