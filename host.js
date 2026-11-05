@@ -440,6 +440,29 @@ export function apply(ctx) {
     const settings = await config();
     return json({ model:settings.model, configured:Boolean(settings.key || process.env.OPENAI_API_KEY), endpoint:gateway(settings).href, outputDirectory:settings.outputDirectory||'' });
   });
+  route('output-directory-picker', ['POST'], async (request, _, signal) => {
+    const body=await readJson(request,8192);
+    const picker=typeof ctx.get==='function'?ctx.get('directoryPicker'):ctx.reflect?.get('directoryPicker');
+    const capability=picker?.capability();
+    if(!capability)throw fail(503,'DSH 当前未启用目录选择器，请在 DSH 中启用目录选择功能。');
+    try {
+      if(body.action==='open'&&capability.kind==='native')return json({kind:'native',path:await capability.pick(signal)});
+      if(capability.kind!=='browse')throw fail(400,'当前目录选择器不支持此操作。');
+      if(body.action==='open')return json({kind:'browse',listing:await capability.list(undefined,signal)});
+      if(typeof body.path!=='string'||body.path.length>4096)throw fail(400,'目录选择无效，请重新打开选择器。');
+      if(body.action==='list')return json({kind:'browse',listing:await capability.list(body.path,signal)});
+      if(body.action==='create'){
+        const name=typeof body.name==='string'?body.name.trim():'';
+        if(!name||name==='.'||name==='..'||/[\\/\0]/.test(name)||name.length>255)throw fail(400,'请输入有效的文件夹名称。');
+        const path=await capability.createDirectory(body.path,name);
+        return json({kind:'browse',listing:await capability.list(path,signal)});
+      }
+      throw fail(400,'目录选择操作无效。');
+    } catch(error) {
+      if(error.status||signal.aborted)throw error;
+      throw fail(400,body.action==='create'?'文件夹创建失败，请检查名称和写入权限。':'无法选择或读取文件夹，请检查目录权限。');
+    }
+  });
   route('reveal-key', ['POST'], async () => {
     const { key } = await config();
     if (!key) throw fail(404, '没有可查看的已保存密钥。Host 环境变量中的密钥请在原配置处查看。');

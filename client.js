@@ -391,8 +391,22 @@ window.__ModuleLoader__.load({
       const [revealed,setRevealed]=useState(false);
       const [baseUrl,setBaseUrl]=useState(null);
       const [outputPath,setOutputPath]=useState(null);
+      const [directoryListing,setDirectoryListing]=useState(null);
+      const [folderName,setFolderName]=useState('');
+      const [showHiddenFolders,setShowHiddenFolders]=useState(false);
+      function chooseOutputDirectory(operation='open',path,name){
+        action('选择保存文件夹',async signal=>{
+          const result=await(await request('output-directory-picker',{action:operation,path,name},signal)).json();
+          if(signal.aborted)return;
+          if(result.kind==='native'){
+            if(result.path)setOutputPath(result.path);
+          }else{
+            setDirectoryListing(result.listing);setFolderName('');
+          }
+        });
+      }
       function closeSettings(){
-        setOpenSettings(false);setKey('');setRevealed(false);setBaseUrl(null);setOutputPath(null);
+        setOpenSettings(false);setKey('');setRevealed(false);setBaseUrl(null);setOutputPath(null);setDirectoryListing(null);setFolderName('');
       }
       function toggleKey(){
         if(revealed){setRevealed(false);return;}
@@ -807,10 +821,24 @@ window.__ModuleLoader__.load({
         h('small',null,'本机可用 HTTP，远程中转站请用 HTTPS。'),
         h('label',{className:'field'},'GPT Image 模型',h('input',{value:settings?.model||'',onChange:e=>setSettings({...settings,model:e.target.value})})),
         h('label',{className:'field'},'API Key',h('input',{value:key,type:revealed?'text':'password',autoComplete:'off',spellCheck:false,placeholder:settings?.configured?'留空保留现有 Key':'输入 API Key',onChange:e=>setKey(e.target.value)})),
-        h('label',{className:'field'},'生成图片保存目录',h('input',{value:outputPath??settings?.outputDirectory??'',placeholder:'例如 D:/AI图片',onChange:e=>setOutputPath(e.target.value)})),
-        h('small',null,'填写运行 DSH 的电脑上的绝对目录，生成的 PNG 原图会自动保存。留空关闭自动保存。'),
+        h('div',{className:'field'},h('strong',null,'生成图片保存目录'),
+          h('div',{className:'line'},Button('选择文件夹…',()=>chooseOutputDirectory(),{disabled:!!busy}),
+            (outputPath??settings?.outputDirectory)&&Button('关闭自动保存',()=>setOutputPath(''),{disabled:!!busy})),
+          h('p',{style:{overflowWrap:'anywhere'}},(outputPath??settings?.outputDirectory)||'尚未选择文件夹'),
+          h('small',null,'选择后点击保存设置。PNG 原图将自动保存到运行 DSH 的电脑。')),
+        directoryListing&&h('div',{className:'box stack',role:'region','aria-label':'选择保存文件夹'},
+          h('div',{className:'line spread'},h('h2',null,'选择保存文件夹'),Button('取消',()=>setDirectoryListing(null),{disabled:!!busy})),
+          h('div',{className:'line'},directoryListing.crumbs.map(crumb=>Button(crumb.name,()=>chooseOutputDirectory('list',crumb.path),{key:crumb.path,disabled:!!busy}))),
+          h('div',{style:{maxHeight:260,overflow:'auto'},className:'stack'},
+            directoryListing.entries.filter(entry=>showHiddenFolders||!entry.hidden).map(entry=>Button('📁 '+entry.name,()=>chooseOutputDirectory('list',entry.path),{key:entry.path,disabled:!!busy})),
+            !directoryListing.entries.some(entry=>showHiddenFolders||!entry.hidden)&&h('small',null,'这个目录中没有可显示的子文件夹。')),
+          directoryListing.truncated&&h('small',null,'子文件夹较多，当前列表已截取。'),
+          h('label',null,h('input',{type:'checkbox',checked:showHiddenFolders,onChange:e=>setShowHiddenFolders(e.target.checked)}),' 显示隐藏文件夹'),
+          h('div',{className:'line'},h('input',{'aria-label':'新文件夹名称',placeholder:'新文件夹名称',value:folderName,onChange:e=>setFolderName(e.target.value),disabled:!!busy}),
+            Button('新建文件夹',()=>chooseOutputDirectory('create',directoryListing.path,folderName),{disabled:!!busy||!folderName.trim()})),
+          Button('使用此文件夹',()=>{setOutputPath(directoryListing.path);setDirectoryListing(null);},{className:'primary',disabled:!!busy})),
         h('div',{className:'line'},Button(revealed?'隐藏密钥':'查看明文',toggleKey,{disabled:!!busy,'aria-pressed':revealed}),
-          Button('保存设置',()=>action('保存设置',async signal=>{const result=await(await request('settings',{key,model:settings.model,baseUrl:baseUrl??undefined,outputDirectory:outputPath??undefined},signal)).json();setSettings(result);closeSettings();}),{className:'primary',disabled:!settings||!!busy})));
+          Button('保存设置',()=>action('保存设置',async signal=>{const result=await(await request('settings',{key,model:settings.model,baseUrl:baseUrl??undefined,outputDirectory:outputPath??undefined},signal)).json();setSettings(result);closeSettings();}),{className:'primary',disabled:!settings||!!busy||!!directoryListing})));
       const presets={
         '':['自动判断',0,'一句话描述你想做的内容'],single:['单张插画',1,'例如：画一张窗台晒太阳的猫'],
         carousel:['社媒套图',6,'例如：做一套小红书雨天街拍姿势指南'],poster:['封面海报',1,'例如：给咖啡店开业做一张竖版海报'],
