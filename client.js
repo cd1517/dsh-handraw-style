@@ -713,6 +713,23 @@ window.__ModuleLoader__.load({
 
       const generateOne=()=>settings?.configured?action('正在生成当前页',signal=>generate(page,active,signal)):setOpenSettings(true);
       const exportPage=()=>action('导出本页',async()=>download(await renderPng(project,decorate(page,active),active),'page-'+String(active+1).padStart(2,'0')+'.png'));
+      const [copiedImage,setCopiedImage]=useState(false);
+      const copyImage=()=>{
+        if(!page.image)return;
+        action('正在复制图片',async()=>{
+          if(!navigator.clipboard?.write||typeof ClipboardItem==='undefined')throw new Error('当前环境不支持复制图片，请改用「下载 PNG」。');
+          const blob=await renderPng(project,decorate(page,active),active);
+          try {
+            await navigator.clipboard.write([new ClipboardItem({'image/png':blob})]);
+          } catch (error) {
+            throw new Error(/denied|permission|notallowed/i.test(error?.name||error?.message||'')
+              ? '浏览器拒绝了剪贴板权限，请允许后重试，或改用「下载 PNG」。'
+              : '复制失败，请改用「下载 PNG」。');
+          }
+          setCopiedImage(true);
+          setTimeout(()=>setCopiedImage(false),1800);
+        });
+      };
       const exportAll=()=>action('导出整套',async()=>{
         const files=[];
         for(const [i,x] of project.pages.entries()) files.push({name:String(i+1).padStart(2,'0')+'-'+roles[x.role][0].replaceAll('/','-')+'.png',blob:await renderPng(project,decorate(x,i),i)});
@@ -972,6 +989,7 @@ window.__ModuleLoader__.load({
             h('div',{className:'line'},Button(page.image?'重做本页':'生成本页',generateOne,{className:'primary',disabled:!canGenerate}),
               project.pages.length>1&&Button('生成剩余 '+remaining.length+' 页',()=>settings?.configured?action('正在生成批量任务',signal=>batch(remaining,signal)):setOpenSettings(true),{disabled:!!busy||!remaining.length}),
               page.image&&Button('下载 PNG',exportPage,{disabled:!!busy}),
+              page.image&&Button(copiedImage?'已复制':'复制图片',copyImage,{disabled:!!busy,title:'把这张成图复制到剪贴板','aria-label':'复制图片到剪贴板'}),
               project.pages.length>1&&Button('导出整套 ZIP',exportAll,{disabled:!!busy||project.pages.some(x=>!x.image)}))),
           h('aside',{className:'box stack inspector','aria-label':'图片设置'},
             h('div',{className:'line inspector-tabs'},Object.entries(panels).map(([id,name])=>Button(name,()=>setInspector(id),{key:id,'aria-pressed':inspector===id}))),
