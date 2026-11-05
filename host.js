@@ -1,3 +1,4 @@
+import { outputDirectory, saveGeneratedImage } from './output-directory.js';
 import { compilePrompt } from './prompt.js';
 import { readFile, mkdir, writeFile, rename } from 'node:fs/promises';
 import { homedir } from 'node:os';
@@ -71,11 +72,12 @@ async function saveConfig(body) {
   if (new URL(endpoint).origin !== gateway(current).origin && !String(body.key || '').trim() && (key || process.env.OPENAI_API_KEY)) {
     throw fail(400, '更换接口地址时，请填写该中转站的 API Key。');
   }
+  const directory=body.outputDirectory===undefined?current.outputDirectory||'':await outputDirectory(body.outputDirectory);
   await mkdir(dataDir, { recursive: true, mode: 0o700 });
   const temporary = join(dataDir, randomUUID() + '.tmp');
-  await writeFile(temporary, JSON.stringify({ model, key, baseUrl: baseUrl ? endpoint : undefined }), { mode: 0o600, flag: 'wx' });
+  await writeFile(temporary, JSON.stringify({ model, key, baseUrl: baseUrl ? endpoint : undefined, outputDirectory:directory }), { mode: 0o600, flag: 'wx' });
   await rename(temporary, configFile);
-  return { model, configured: Boolean(key || process.env.OPENAI_API_KEY), endpoint };
+  return { model, configured: Boolean(key || process.env.OPENAI_API_KEY), endpoint, outputDirectory:directory };
 }
 
 function gateway(settings = {}) {
@@ -223,7 +225,17 @@ export async function generate(body, settings, list, signal) {
   const { data } = await result.json();
   const encoded = data?.[0]?.b64_json;
   if (typeof encoded !== 'string' || !/^[A-Za-z0-9+/=]+$/.test(encoded)) throw fail(502, '接口未返回 GPT Image 的 b64_json 图片。');
-  return new Response(Buffer.from(encoded, 'base64'), { headers: { 'Content-Type': 'image/png', 'Cache-Control': 'no-store' } });
+  const bytes=Buffer.from(encoded, 'base64');
+  const headersOut={ 'Content-Type':'image/png', 'Cache-Control':'no-store' };
+  if(settings.outputDirectory){
+    try {
+      const path=await saveGeneratedImage(settings.outputDirectory,bytes,body.page);
+      headersOut['X-Pose-Studio-Saved-Path']=encodeURIComponent(path);
+    } catch {
+      headersOut['X-Pose-Studio-Save-Error']=encodeURIComponent('图片已生成，但自动保存失败，请检查保存目录或磁盘空间，并先下载图片。');
+    }
+  }
+  return new Response(bytes,{headers:headersOut});
 }
 
 async function readJson(request, maxBytes) {
@@ -426,7 +438,7 @@ export function apply(ctx) {
   route('settings', ['GET', 'POST'], async request => {
     if (request.method === 'POST') return json(await saveConfig(await readJson(request, 4096)));
     const settings = await config();
-    return json({ model:settings.model, configured:Boolean(settings.key || process.env.OPENAI_API_KEY), endpoint:gateway(settings).href });
+    return json({ model:settings.model, configured:Boolean(settings.key || process.env.OPENAI_API_KEY), endpoint:gateway(settings).href, outputDirectory:settings.outputDirectory||'' });
   });
   route('reveal-key', ['POST'], async () => {
     const { key } = await config();

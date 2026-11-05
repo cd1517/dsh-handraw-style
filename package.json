@@ -29,6 +29,7 @@
     "README.md",
     "gallery",
     "import-gallery.js",
-    "prompt.js"
+    "prompt.js",
+    "output-directory.js"
   ]
 }

@@ -108,6 +108,8 @@ window.__ModuleLoader__.load({
           direction:page?.direction&&typeof page.direction==='object'?page.direction:undefined,
           promptMode:page?.promptMode,layoutVariant:page?.layoutVariant,redraw:page?.redraw,
           typeOn:page?.typeOn,nativeLayout:page?.nativeLayout,
+          savedPath:typeof page?.savedPath==='string'?page.savedPath:undefined,
+          saveError:typeof page?.saveError==='string'?page.saveError:undefined,
           refs:page?.refs&&typeof page.refs==='object'?page.refs:{},
           image:typeof page?.image==='string'?page.image:'',
           uploads:Array.isArray(page?.uploads)?page.uploads:[],
@@ -388,8 +390,9 @@ window.__ModuleLoader__.load({
       const [key,setKey]=useState('');
       const [revealed,setRevealed]=useState(false);
       const [baseUrl,setBaseUrl]=useState(null);
+      const [outputPath,setOutputPath]=useState(null);
       function closeSettings(){
-        setOpenSettings(false);setKey('');setRevealed(false);setBaseUrl(null);
+        setOpenSettings(false);setKey('');setRevealed(false);setBaseUrl(null);setOutputPath(null);
       }
       function toggleKey(){
         if(revealed){setRevealed(false);return;}
@@ -537,15 +540,18 @@ window.__ModuleLoader__.load({
       }
       async function generate(target,index,signal){
         if(target.locked||signal.aborted)return;
-        const input=promptInput(target,index);
+        const input={...promptInput(target,index),page:index+1};
         if(target.upload)input.refs.upload=target.upload;
         const attachedImages=[...(project.attachments||[]),...(target.uploads||[])].filter(x=>x.kind==='image'&&x.data).map(x=>x.data);
         if(attachedImages.length)input.refs.attachments=attachedImages;
         if(project.anchor&&project.anchor!==target.image&&project.anchor.length<=11_184_850)input.refs.anchor=project.anchor;
-        const blob=await (await request('generate',input,signal)).blob();
+        const response=await request('generate',input,signal);
+        const savedPath=decodeURIComponent(response.headers.get('X-Pose-Studio-Saved-Path')||'');
+        const saveError=decodeURIComponent(response.headers.get('X-Pose-Studio-Save-Error')||'');
+        const blob=await response.blob();
         const image=await imageData(blob);
         const base=latestProject??project;
-        const next={...base,pages:base.pages.map(x=>x.id===target.id?{...x,image,nativeLayout:!input.design.localText}:x)};
+        const next={...base,pages:base.pages.map(x=>x.id===target.id?{...x,image,savedPath,saveError,nativeLayout:!input.design.localText}:x)};
         latestProject=next;
         // 先把成图记进模块快照，切走面板或重新挂载都不会丢这一页。
         rememberProject(next);
@@ -801,8 +807,10 @@ window.__ModuleLoader__.load({
         h('small',null,'本机可用 HTTP，远程中转站请用 HTTPS。'),
         h('label',{className:'field'},'GPT Image 模型',h('input',{value:settings?.model||'',onChange:e=>setSettings({...settings,model:e.target.value})})),
         h('label',{className:'field'},'API Key',h('input',{value:key,type:revealed?'text':'password',autoComplete:'off',spellCheck:false,placeholder:settings?.configured?'留空保留现有 Key':'输入 API Key',onChange:e=>setKey(e.target.value)})),
+        h('label',{className:'field'},'生成图片保存目录',h('input',{value:outputPath??settings?.outputDirectory??'',placeholder:'例如 D:/AI图片',onChange:e=>setOutputPath(e.target.value)})),
+        h('small',null,'填写运行 DSH 的电脑上的绝对目录，生成的 PNG 原图会自动保存。留空关闭自动保存。'),
         h('div',{className:'line'},Button(revealed?'隐藏密钥':'查看明文',toggleKey,{disabled:!!busy,'aria-pressed':revealed}),
-          Button('保存设置',()=>action('保存设置',async signal=>{const result=await(await request('settings',{key,model:settings.model,baseUrl:baseUrl??undefined},signal)).json();setSettings(result);closeSettings();}),{className:'primary',disabled:!settings||!!busy})));
+          Button('保存设置',()=>action('保存设置',async signal=>{const result=await(await request('settings',{key,model:settings.model,baseUrl:baseUrl??undefined,outputDirectory:outputPath??undefined},signal)).json();setSettings(result);closeSettings();}),{className:'primary',disabled:!settings||!!busy})));
       const presets={
         '':['自动判断',0,'一句话描述你想做的内容'],single:['单张插画',1,'例如：画一张窗台晒太阳的猫'],
         carousel:['社媒套图',6,'例如：做一套小红书雨天街拍姿势指南'],poster:['封面海报',1,'例如：给咖啡店开业做一张竖版海报'],
@@ -976,12 +984,14 @@ window.__ModuleLoader__.load({
               Button('添加空白图',()=>{update({pages:[...project.pages,blankPage('single')]});setActive(project.pages.length);},{disabled:project.pages.length>=12}),
               Button('复制这张的设置',()=>{
                 const pages=[...project.pages];
-                pages.splice(active+1,0,{...page,id:crypto.randomUUID(),image:'',nativeLayout:undefined,locked:false});
+                pages.splice(active+1,0,{...page,id:crypto.randomUUID(),image:'',savedPath:undefined,saveError:undefined,nativeLayout:undefined,locked:false});
                 update({pages});setActive(active+1);
               },{disabled:project.pages.length>=12}),
               Button('删除这张',()=>{update({pages:project.pages.filter(x=>x.id!==page.id)});setActive(Math.max(0,active-1));},{disabled:project.pages.length===1||page.locked})))),
           h('section',{className:'box stack result-panel'},
             h('small',null,'第 '+(active+1)+' 张'+(page.placement?' · '+page.placement:'')),
+            page.image&&page.savedPath&&h('small',{style:{overflowWrap:'anywhere'}},'已保存到 '+page.savedPath),
+            page.image&&page.saveError&&h('p',{className:'error',role:'alert'},page.saveError),
             (preview||page.image)?h('img',{className:'preview',src:preview||page.image,alt:'当前页成图',title:'点击放大查看',tabIndex:0,role:'button','aria-label':'放大查看当前页成图',
               onClick:()=>setViewer({src:preview||page.image,scale:1}),
               onKeyDown:e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();setViewer({src:preview||page.image,scale:1});}}}):
