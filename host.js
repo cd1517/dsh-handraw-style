@@ -120,7 +120,10 @@ export async function imageModels(body = {}, stored, signal) {
   }
   if (!response.ok) {
     const failure = await upstreamFailure(response);
-    throw fail(502, '拉取模型失败（HTTP ' + response.status + '）' + (failure.message ? '：' + failure.message : '，请检查 API Key 与接口地址。'));
+    const detail = failure.message ? '：' + failure.message : '，请检查 API Key 与接口地址';
+    // 号池漏写 /v1 时最常见的结果就是 404，直接把定位信息说清楚。
+    const hint = response.status === 404 ? '；模型列表在 Base URL 的 models 路径下，请确认地址形如 http://主机:端口/v1' : '';
+    throw fail(502, '拉取模型失败（HTTP ' + response.status + '）' + detail + hint);
   }
   let catalog;
   try { catalog = await response.json(); } catch { throw fail(502, '模型接口没有返回有效 JSON。'); }

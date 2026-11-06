@@ -411,7 +411,12 @@ window.__ModuleLoader__.load({
           if(!result.models.length)setModelStatus('接口没有公布 GPT Image 生图模型，请检查号池是否正常运行。');
           else if(!result.models.includes(settings?.model))setModelStatus('当前已保存的模型不在接口列表中，请从下拉框选择一个可用模型。');
         } catch(error){
-          if(!controller.signal.aborted){setModelChoices([]);setModelStatus(error.message);}
+          if(!controller.signal.aborted){
+            setModelChoices([]);
+            // 插件接口没注册时 DSH 只回一个裸 404，提示去重启宿主，别让用户以为是号池坏了。
+            const missing=error.message==='DSH 请求失败（404）';
+            setModelStatus(missing?'接口未注册（404）：当前 DSH 宿主还没有加载新版插件，重启 DSH 后再刷新模型。':error.message);
+          }
         } finally {
           if(modelRequest.current===controller){modelRequest.current=null;setModelsLoading(false);}
         }

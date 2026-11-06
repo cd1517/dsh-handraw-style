@@ -37,6 +37,17 @@ test('does not forward a stored API key to another gateway', async () => {
   } finally { globalThis.fetch = previous; }
 });
 
+test('explains a 404 from a gateway whose Base URL is missing /v1', async () => {
+  const previous = globalThis.fetch;
+  globalThis.fetch = async () => new Response('Not Found', { status: 404 });
+  try {
+    await assert.rejects(
+      imageModels({}, { baseUrl: 'http://127.0.0.1:38650', key: 'saved-secret-key' }, new AbortController().signal),
+      error => error.status === 502 && /HTTP 404/.test(error.message) && /\/v1/.test(error.message),
+    );
+  } finally { globalThis.fetch = previous; }
+});
+
 test('supports a new gateway when its API key is explicitly entered', async () => {
   const previous = globalThis.fetch;
   globalThis.fetch = async (url, init) => {
